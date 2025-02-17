@@ -4,6 +4,15 @@ import {
   ObjectSchema,
   ValidationOptions,
   ValidationError,
+  StringSchema,
+  NumberSchema,
+  BooleanSchema,
+  DateSchema,
+  EmailSchema,
+  UrlSchema,
+  MinLengthSchema,
+  MaxLengthSchema,
+  PatternSchema,
 } from './types';
 
 const defaultMessages = {
@@ -21,12 +30,12 @@ class BaseSchema<T> implements Schema<T> {
 
   constructor(
     private validator: (
-      value: unknown,
+      value: T,
       options?: ValidationOptions,
     ) => ValidationResult<T>,
   ) {}
 
-  validate(value: unknown, options?: ValidationOptions): ValidationResult<T> {
+  validate(value: T, options?: ValidationOptions): ValidationResult<T> {
     if (value === null) {
       if (this.isNullable) {
         return { success: true, value: null as T };
@@ -73,6 +82,44 @@ class BaseSchema<T> implements Schema<T> {
     this.isNullable = true;
     this.nullableMessage = message;
     return this;
+  }
+
+  custom(
+    validationFn: (value: T) => boolean | Promise<boolean>,
+    message?: string,
+  ): Schema<T> {
+    return new BaseSchema((value: T, options?: ValidationOptions) => {
+      const result = validationFn(value);
+      if (result instanceof Promise) {
+        return result.then(isValid => {
+          if (isValid) {
+            return { success: true, value };
+          }
+          return {
+            success: false,
+            errors: [
+              {
+                path: [],
+                message:
+                  message || options?.messages?.custom || 'Invalid value',
+              },
+            ],
+          };
+        });
+      }
+      if (result) {
+        return { success: true, value: value as T };
+      }
+      return {
+        success: false,
+        errors: [
+          {
+            path: [],
+            message: message || options?.messages?.custom || 'Invalid value',
+          },
+        ],
+      };
+    });
   }
 }
 
